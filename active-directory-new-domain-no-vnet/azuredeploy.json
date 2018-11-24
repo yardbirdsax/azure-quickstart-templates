@@ -3,7 +3,8 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "adVMName": {
-      "type": "string"
+      "type": "string",
+      "defaultValue": "labdc"
     },
     "storageAccountType": {
       "type": "string",
@@ -26,26 +27,12 @@
       },
       "defaultValue": "AzureLabVNET"
     },
-    "virtualNetworkAddressRange": {
-      "type": "string",
-      "metadata": {
-        "description": "The address range of the new VNET in CIDR format"
-      },
-      "defaultValue": "10.0.0.0/16"
-    },
     "adSubnetName": {
       "type": "string",
       "metadata": {
         "description": "The name of the subnet created in the new VNET"
       },
-      "defaultValue": "private"
-    },
-    "adSubnetAddressPrefix": {
-      "type": "string",
-      "metadata": {
-        "description": "The address range of the subnet created in the new VNET"
-      },
-      "defaultValue": "10.0.0.0/24"
+      "defaultValue": "domain"
     },
     "adNicIPAddress": {
       "type": "string",
@@ -61,7 +48,7 @@
         "Static"
       ],
       "metadata": {
-        "description": "The type of the public IP address used by the Load Balancer"
+        "description": "The type of the public IP address used by the domain controller"
       },
       "defaultValue": "Dynamic"
     },
@@ -118,12 +105,12 @@
       "type": "string",
       "allowedValues": [
         "2012-R2-Datacenter",
-        "Windows-Server-Technical-Preview"
+        "2016-Datacenter"
       ],
       "metadata": {
         "description": "Windows server SKU"
       },
-      "defaultValue": "2012-R2-Datacenter"
+      "defaultValue": "2016-Datacenter"
     },
     "_artifactsLocation": {
       "type": "string",
@@ -138,6 +125,14 @@
       "metadata": {
         "description": "Auto-generated token to access _artifactsLocation"
       }
+    },
+    "attachPublicIpAddress": {
+      "type": "string",
+      "defaultValue": "yes",
+      "allowedValues": [
+        "yes",
+        "no"
+      ]
     }
   },
   "variables": {
@@ -152,7 +147,14 @@
     "adSubnetRef": "[concat(variables('VnetID'),'/subnets/',parameters('adSubnetName'))]",
     "adDataDisk": "ADDataDisk",
     "adDataDiskSize": 1000,
-    "adConfigurationFunction": "CreateADPDC.ps1\\CreateADPDC"
+    "adConfigurationFunction": "CreateADPDC.ps1\\CreateADPDC",
+    "publicIpAddressRef": {
+      "yes":{
+        "id":"[concat(subscription().id,'/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Network/publicIpAddresses/',variables('publicIPAddressName'))]"
+      },
+      "no":null
+    },
+    "publicIpAddress":"[variables('publicIpAddressRef')[parameters('attachPublicIpAddress')]]"
   },
   "resources": [
     {
@@ -169,6 +171,7 @@
     {
       "apiVersion": "2016-03-30",
       "type": "Microsoft.Network/publicIPAddresses",
+      "condition":"[equals(parameters('attachPublicIpAddress'),'yes')]",
       "name": "[variables('publicIPAddressName')]",
       "location": "[resourceGroup().location]",
       "properties": {
@@ -189,6 +192,9 @@
       "name": "[variables('adNicName')]",
       "type": "Microsoft.Network/networkInterfaces",
       "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[variables('publicIPAddressName')]"
+      ],
       "apiVersion": "2016-03-30",
       "properties": {
         "ipConfigurations": [
@@ -199,7 +205,8 @@
               "privateIPAddress": "[parameters('adNicIPAddress')]",
               "subnet": {
                 "id": "[variables('adSubnetRef')]"
-              }
+              },
+              "publicIPAddress": "[variables('publicIPAddress')]"
             }
           }
         ]
@@ -296,40 +303,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "UpdateVNetDNS",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2015-01-01",
-      "dependsOn": [
-        "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('adVMName'),'CreateADForest')]"
-      ],
-      "properties": {
-        "mode": "Incremental",
-        "templateLink": {
-          "uri": "[concat(parameters('_artifactsLocation'), '/', variables('nestedTemplatesFolderName'), '/', 'vnet-with-dns-server.json', parameters('_artifactsLocationSasToken'))]",
-          "contentVersion": "1.0.0.0"
-        },
-        "parameters": {
-          "virtualNetworkName": {
-            "value": "[parameters('virtualNetworkName')]"
-          },
-          "virtualNetworkAddressRange": {
-            "value": "[parameters('virtualNetworkAddressRange')]"
-          },
-          "subnetName": {
-            "value": "[parameters('adSubnetName')]"
-          },
-          "subnetRange": {
-            "value": "[parameters('adSubnetAddressPrefix')]"
-          },
-          "DNSServerAddress": {
-            "value": [
-              "[parameters('adNicIPAddress')]"
-            ]
-          }
-        }
-      }
     }
   ]
 }

@@ -3,16 +3,16 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "adminUsername": {
-      "value": "azureuser"
+      "value": "labadmin"
     },
     "adminPassword": {
       "value": "GEN-PASSWORD"
     },
     "domainName": {
-      "value": "mydomain.local"
+      "value": "azurelab.local"
     },
     "dnsPrefix": {
-      "value": "GEN-UNIQUE"
+      "value": "jef468"
     }
   }
 }
